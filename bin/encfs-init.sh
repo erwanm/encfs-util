@@ -1,7 +1,5 @@
 #!/bin/bash
 
-set -x
-
 source common-lib.sh
 source file-lib.sh
 

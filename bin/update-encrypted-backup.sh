@@ -213,45 +213,47 @@ fi
 if [ ! -z "$encfsReverse" ]; then
 
     # Principle:
-    # 0. init the dest dir if new
+    # 0. init the dest dir if -i, check that dest dir exists if not
     # 1. copy config file from dest to source host into temp dir  
     # 2. reverse-open source dir (using config file)
     # 3. sanity check on mounted dir (source side): not empty
     # 4. rsync from source to dest
     # 5. copy config file back to dest dir, unmount and delete temp dir
     
-    encfsInitOpts="$encfsPassOptions"
-    if [ ! -z "$askPassword" ]; then
-	if [ -z "$storeWithPass" ]; then
-	    encfsInitOpts="$encfsInitOpts -p"
-	else
-	    encfsInitOpts="$encfsInitOpts -P"
+    if [ -z "$initialize" ]; then 	# CASE UPDATE
+	firstCommand="if [ ! -f \"$destDir/$configFile\" ]; then echo \"Error: destination is not a valid encrypted directory.\" 1>&2; exit 1; fi"
+#	execCommand "$checkExistCommand" "$hostDest"
+#	if [ $? -ne 0 ]; then
+#	    exit 1
+#	fi
+    else                                # CASE INIT
+	encfsInitOpts="$encfsPassOptions"
+	if [ ! -z "$askPassword" ]; then
+	    if [ -z "$storeWithPass" ]; then
+		encfsInitOpts="$encfsInitOpts -p"
+	    else
+		encfsInitOpts="$encfsInitOpts -P"
+	    fi
 	fi
+	if [ ! -z "$passKey" ]; then
+	    encfsInitOpts="$encfsInitOpts -k \"$passKey\""
+	fi
+	firstCommand="if [ ! -f \"$destDir/$configFile\" ]; then echo \"Initializing encrypted dest dir...\" 1>&2; encfs-init.sh -r $encfsInitOpts \"$destDir\"; else echo \"Error: destination already exists\" 1>&2; exit 2; fi"
     fi
-    if [ ! -z "$passKey" ]; then
-	encfsInitOpts="$encfsInitOpts -k \"$passKey\""
-    fi
-
-    # first step: if update, make sure the encrypted dest dir exists and fail if it doesn't exist; if init, initialize it and fail if it exists
-
-    if [ -z "$initialize" ]; then
-	checkExistCommand="if [ ! -f \"$destDir/$configFile\" ]; then echo \"Error: destination is not a valid encrypted directory.\" 1>&2; exit 1; fi"
-	execCommand "$checkExistCommand" "$hostDest" || exit $?
-    else
-	checkInitCommand="if [ ! -f \"$destDir/$configFile\" ]; then echo \"Initializing encrypted dest dir...\" 1>&2; encfs-init.sh -r $encfsInitOpts \"$destDir\"; else echo \"Error: destination already exists\" 1>&2; exit 2; fi"
-	execCommand "$checkInitCommand" "$hostDest" || exit $?
-    fi
-    echo "EXIT" 1>&2
-    exit 1
-    
-    checkInitCommand="if [ ! -f \"$destDir/$configFile\" ]; then echo \"Initializing encrypted dest dir...\" 1>&2; encfs-init.sh -r $encfsInitOpts \"$destDir\"; fi"
     if [ ! -z "$storeWithPass" ] && [ -z "$passKey" ]; then # if password stored with pass and key not provided manually, obtain generated key
 	filePseudoUniqueId=$(date +"%y-%m-%d-%H-%M-%S-%N")
 	outputFilename="/tmp/$progName.$filePseudoUniqueId"
-	checkInitCommand="$checkInitCommand; encfs-open.sh $encfsPassOptions -P \"$destDir\" >$outputFilename"
+	firstCommand="$firstCommand; encfs-open.sh $encfsPassOptions -P \"$destDir\" >$outputFilename"
     fi
-    echo "$progName: Checking destination dir '$dest', initializing with encfs-init.sh if needed..." 1>&2
-    execCommand "$checkInitCommand" "$hostDest" || exit $?
+    execCommand "$firstCommand" "$hostDest"
+    if [ $? -ne 0 ]; then
+	if [ -z "$initialize" ]; then
+	    echo "Error: the destination directory is not a valid encrypted dir (maybe you want to use -i to initialize?)" 1>&2
+	else
+	    echo "Error: the destination directory already exists or cannot be created." 1>&2
+	fi
+	exit 2
+    fi
     if [ ! -z "$storeWithPass" ] && [ -z "$passKey" ]; then # if password stored with pass and key not provided manually, obtain generated key
 	moveFileLocallyIfNeeded "$outputFilename" "$hostDest" || exit $?
 	possiblePassKey=$(cat "$outputFilename")
@@ -325,7 +327,7 @@ if [ ! -z "$encfsReverse" ]; then
     fi
     eval "$rsyncComm" || exit $?
 
-    # Remark: the config file needs to be copied back to the deste dir because 'rsync --del' removes it :(
+    # Remark: the config file needs to be copied back to the dest dir because 'rsync --del' removes it :(
     # 5. copy config file back to dest dir, unmount and delete temp dir
     if [ -z "$hostSrc" ]; then   # source is local and dest is either local or remote
 	copyComm="rsync $rsyncOptions  \"$workDir/fakedest/$configFile\" \"$dest/$configFile\""

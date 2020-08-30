@@ -1,0 +1,2 @@
+
+addToEnvVar "$(pwd)/bin" "PATH" :

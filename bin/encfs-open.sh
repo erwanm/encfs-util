@@ -136,12 +136,10 @@ if [ ! -z "$reverseClearDir" ]; then
     options="$options --reverse"
 fi
 
-
 if [ -z "$askPassword" ]; then
-    pass git pull -q
+    timeout 5 pass git pull -q
     if [ $? -ne 0 ] ; then
-	echo "Command 'pass git pull' failed." 1>&2
-	exit 2
+	echo "Command 'pass git pull' timed out." 1>&2
     fi
     if [ -z "$passKey" ]; then
 	passKey="$encryptedDir"

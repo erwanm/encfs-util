@@ -136,8 +136,6 @@ function moveFileLocallyIfNeeded {
 
 
 
-
-
 while getopts 'hpPk:re:g:o:t:d' option ; do
     case $option in
 	"h" ) usage
@@ -336,7 +334,7 @@ if [ ! -z "$encfsReverse" ]; then
     execCommand "$umountComm" "$hostSrc" || exit $?
     
 else # regular rsync (no reverse encoding)
-    rsyncComm="rsync $rsyncOptions \"$source\" \"$dest/\""
+    rsyncComm="rsync $rsyncOptions \"$source/\" \"$dest/\""
     execCommand "$rsyncComm" || exit $?
 fi
 
